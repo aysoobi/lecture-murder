@@ -58,7 +58,6 @@ python3 -m http.server 8080
 
 Игра публикуется на **GitHub Pages** из ветки `main` (корень репозитория).
 
-Ссылка для жюри: **https://aysoobi.github.io/lecture-murder/**
 
 ## Технологии
 
@@ -76,6 +75,3 @@ lecture-murder/
 └── README.md
 ```
 
-## Лицензия
-
-Проект создан для хакатона / демонстрации.
