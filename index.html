@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lecture Murder: Смерть профессора</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#050505; --red:#c41e1e; --red-dark:#6b0f0f; --red-glow:#ff3030;
+      --border:#8b0000; --text:#d4d4d4;
+      --pixel:'Press Start 2P',monospace; --mono:'VT323','Courier New',monospace;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);font-size:18px;overflow:hidden}
+    .pixel{font-family:var(--pixel);font-size:10px;line-height:1.8}
+    .pixel-sm{font-family:var(--pixel);font-size:8px;line-height:1.6}
+    body::before{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.12;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+    @keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-6px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,1px)}80%{transform:translate(4px,-2px)}}
+    @keyframes shakeLight{0%,100%{transform:translate(0,0)}50%{transform:translate(1px,-1px)}}
+    @keyframes blink{0%,100%{opacity:1;color:var(--red-glow)}50%{opacity:.3;color:#500}}
+    @keyframes blinkBorder{0%,100%{border-color:var(--red-glow);box-shadow:0 0 12px rgba(255,0,0,.5)}50%{border-color:#400;box-shadow:none}}
+    @keyframes flashRed{0%{background:rgba(180,0,0,0)}30%{background:rgba(180,0,0,.55)}100%{background:rgba(180,0,0,0)}}
+    @keyframes cursorBlink{50%{opacity:0}}
+  body.shake{animation:shake .3s ease}
+  body.shake-light{animation:shakeLight .8s ease infinite}
+  .timer-danger{animation:blink .6s step-end infinite}
+  .timer-danger-box{animation:blinkBorder .6s step-end infinite}
+  .red-flash::after{content:'';position:fixed;inset:0;z-index:9990;pointer-events:none;animation:flashRed .5s ease}
+
+  .dialog-box{background:#000;border:4px solid var(--border);box-shadow:inset 0 0 0 2px #000,inset 0 0 0 6px #1a0000;padding:16px;position:relative}
+  .type-cursor::after{content:'▌';animation:cursorBlink .7s step-end infinite;color:var(--red)}
+
+  #scene{position:relative;background:linear-gradient(180deg,#080808 0%,#0f0505 55%,#120808 100%);min-height:240px;flex:1;overflow:hidden}
+  .scene-wall{position:absolute;top:0;left:0;right:0;height:50%;background:#0c0c0c;border-bottom:3px solid #1a0808}
+  .scene-board{position:absolute;top:8%;left:50%;transform:translateX(-50%);width:45%;height:22%;background:#111;border:4px solid #222}
+  .scene-board::after{content:'КРИПТОГРАФИЯ';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--pixel);font-size:6px;color:#333}
+  .scene-door{position:absolute;top:12%;right:4%;width:12%;height:35%;background:#0a0a0a;border:3px solid #222}
+  .desk-row{position:absolute;display:flex;gap:8px;justify-content:center;width:90%;left:5%}
+  .desk{width:14%;height:20px;background:#151515;border-top:3px solid #222;box-shadow:0 8px 0 #0a0a0a}
+  .row1{bottom:38%}.row2{bottom:28%;opacity:.7;transform:scale(.9)}
+
+  #mortonCorpse{position:absolute;bottom:30%;left:50%;transform:translateX(-50%);z-index:5;cursor:default;display:flex;flex-direction:column;align-items:center}
+  #mortonCorpse canvas{image-rendering:pixelated;filter:drop-shadow(0 0 8px rgba(139,0,0,.6))}
+  .morton-label{font-family:var(--pixel);font-size:8px;color:var(--red-glow);margin-top:6px;text-align:center;line-height:1.6;max-width:140px;text-shadow:0 0 6px rgba(200,0,0,.5)}
+
+  .npc-scene{position:absolute;z-index:10;cursor:pointer;text-align:center;border:none;background:transparent;padding:2px;transition:transform .15s}
+  .npc-scene:hover{transform:scale(1.08);z-index:15}
+  .npc-scene:disabled{opacity:.35;cursor:not-allowed}
+  .npc-scene canvas{display:block;margin:0 auto;image-rendering:pixelated;filter:drop-shadow(0 0 5px rgba(200,0,0,.45))}
+  .npc-scene .npc-role{font-family:var(--pixel);font-size:8px;color:#888;display:block;margin-top:2px}
+  .npc-scene .npc-count{font-family:var(--pixel);font-size:8px;color:var(--red-glow);display:block;margin-top:1px}
+  .npc-scene .npc-name{font-family:var(--pixel);font-size:9px;color:#ddd;display:block}
+  #npc-elias{top:16%;left:40%}#npc-luna{bottom:38%;left:12%}#npc-felix{bottom:38%;right:12%}
+  #npc-ivy{bottom:46%;left:6%}#npc-orion{top:18%;right:4%}
+
+  #portraitPreview{position:fixed;z-index:8000;pointer-events:none;display:none;padding:8px;background:#0a0000;border:3px solid var(--red);box-shadow:0 0 20px rgba(200,0,0,.5)}
+  #portraitPreview canvas{image-rendering:pixelated;display:block}
+
+  .progress-bar{height:14px;background:#111;border:2px solid var(--border)}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--red-dark),var(--red));transition:width .4s;width:0%}
+  .horror-bar .progress-fill{background:linear-gradient(90deg,#400,#f00)}
+
+  #notebook{max-height:140px;overflow-y:auto;font-size:14px;border:2px solid #222;padding:6px;background:#080808}
+  .note-entry{border-bottom:1px solid #1a1a1a;padding:4px 0}.note-entry .who{color:var(--red)}
+
+  .btn-red{font-family:var(--pixel);font-size:8px;background:#1a0000;border:2px solid var(--red);color:var(--red-glow);padding:10px 14px;cursor:pointer;transition:all .15s}
+  .btn-red:hover:not(:disabled){background:var(--red-dark);color:#fff}
+  .btn-red:disabled{opacity:.35;cursor:not-allowed;border-color:#400;color:#600}
+  .btn-gray{font-family:var(--pixel);font-size:8px;background:#111;border:2px solid #444;color:#888;padding:10px 14px;cursor:pointer}
+  .btn-gray:hover{background:#222;color:#ccc}
+
+  #screamer{position:fixed;inset:0;z-index:9999;display:none;background:#000}
+  #screamer img{width:100%;height:100%;object-fit:cover}
+  #screamer.show{display:block}
+
+  #storyOverlay,#endOverlay,#quizModal{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.92);padding:16px}
+  #storyOverlay{z-index:9500}
+  .hidden{display:none!important}
+
+  #tutorialOverlay{display:none;position:fixed;inset:0;z-index:8500;pointer-events:none}
+  #tutorialOverlay.active{display:block;pointer-events:none}
+  .tut-highlight{position:fixed;border:3px solid var(--red-glow);box-shadow:0 0 0 9999px rgba(0,0,0,.78),0 0 20px rgba(255,0,0,.6);border-radius:4px;z-index:8501;pointer-events:none;transition:all .35s ease}
+  .tut-bubble{position:fixed;z-index:8502;max-width:300px;background:#000;border:3px solid var(--red);padding:12px 14px;font-size:15px;line-height:1.45;pointer-events:none}
+  .tut-bubble .tut-arrow{position:absolute;width:0;height:0;border:10px solid transparent}
+  .tut-bubble.arrow-top .tut-arrow{bottom:-20px;left:24px;border-top-color:var(--red)}
+  .tut-bubble.arrow-bottom .tut-arrow{top:-20px;left:24px;border-bottom-color:var(--red)}
+  .tut-bubble.arrow-left .tut-arrow{right:-20px;top:20px;border-left-color:var(--red)}
+  .tut-bubble.arrow-right .tut-arrow{left:-20px;top:20px;border-right-color:var(--red)}
+  #tutNav{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:8600;pointer-events:auto;display:none;gap:14px;align-items:center;background:#000;border:3px solid var(--red);padding:12px 18px;box-shadow:0 0 24px rgba(200,0,0,.35)}
+
+  #bottomBar{display:flex;gap:8px;padding:8px 12px;border-top:2px solid #2a1010;background:#080808;justify-content:center;flex-shrink:0}
+
+  .quiz-option{display:block;width:100%;text-align:left;margin:6px 0;padding:10px;background:#111;border:2px solid #333;color:#ccc;cursor:pointer;font-family:var(--mono);font-size:16px}
+  .quiz-option:hover{border-color:var(--red);color:#fff}
+
+  @media(max-width:768px){#gameLayout{flex-direction:column!important}#sidePanel{max-height:42vh;overflow-y:auto;width:100%!important}}
+  </style>
+</head>
+<body>
+
+  <div id="audioHint" style="position:fixed;bottom:60px;left:50%;transform:translateX(-50%);z-index:10000;padding:12px 20px;background:#1a0000;border:2px solid var(--red);font-family:var(--pixel);font-size:8px;color:var(--red-glow);cursor:pointer;animation:blinkBorder 1s step-end infinite">🔊 НАЖМИ — ВКЛЮЧИТЬ МУЗЫКУ</div>
+
+  <div id="storyOverlay">
+    <div class="dialog-box max-w-xl w-full">
+      <p id="storyText" class="text-lg leading-relaxed min-h-[120px]"></p>
+      <div class="mt-6 flex justify-end"><button id="storyBtn" class="btn-red">Начать →</button></div>
+    </div>
+  </div>
+
+  <div id="gameRoot" class="hidden h-screen flex flex-col">
+    <header class="flex justify-between items-center px-3 py-2 border-b-2 border-red-900 bg-black">
+      <span class="pixel-sm text-red-600">LECTURE MURDER</span>
+      <button id="muteBtn" class="pixel-sm text-gray-500 hover:text-red-500 border border-gray-800 px-2 py-1">🔊</button>
+    </header>
+
+    <div id="gameLayout" class="flex flex-1 min-h-0">
+      <main class="flex flex-col flex-1 min-w-0">
+        <div id="scene">
+          <div class="scene-wall"></div>
+          <div class="scene-board"></div>
+          <div class="scene-door"></div>
+          <div class="desk-row row1"><div class="desk"></div><div class="desk"></div><div class="desk"></div><div class="desk"></div><div class="desk"></div></div>
+          <div class="desk-row row2"><div class="desk"></div><div class="desk"></div><div class="desk"></div></div>
+          <div id="mortonCorpse" title="Профессор Мортон"><canvas width="64" height="64" id="canvas-morton"></canvas><span class="morton-label">Мёртвый профессор Мортон</span></div>
+
+          <button class="npc-scene" id="npc-elias" data-id="elias"><canvas width="64" height="64" id="canvas-elias"></canvas><span class="npc-name">Элиас</span><span class="npc-role">Профессор</span><span class="npc-count" data-count="elias">0/4</span></button>
+          <button class="npc-scene" id="npc-luna" data-id="luna"><canvas width="64" height="64" id="canvas-luna"></canvas><span class="npc-name">Луна</span><span class="npc-role">Студентка</span><span class="npc-count" data-count="luna">0/4</span></button>
+          <button class="npc-scene" id="npc-felix" data-id="felix"><canvas width="64" height="64" id="canvas-felix"></canvas><span class="npc-name">Феликс</span><span class="npc-role">Студент</span><span class="npc-count" data-count="felix">0/4</span></button>
+          <button class="npc-scene" id="npc-ivy" data-id="ivy"><canvas width="64" height="64" id="canvas-ivy"></canvas><span class="npc-name">Айви</span><span class="npc-role">Уборщица</span><span class="npc-count" data-count="ivy">0/4</span></button>
+          <button class="npc-scene" id="npc-orion" data-id="orion"><canvas width="64" height="64" id="canvas-orion"></canvas><span class="npc-name">Орион</span><span class="npc-role">Охранник</span><span class="npc-count" data-count="orion">0/4</span></button>
+        </div>
+
+        <div id="dialogArea" class="dialog-box m-2 flex-shrink-0">
+          <p id="dialogName" class="pixel-sm text-red-500 mb-2">—</p>
+          <p id="dialogText" class="text-xl min-h-[56px]">Выберите свидетеля.</p>
+          <div id="dialogActions" class="hidden flex flex-wrap gap-2 mt-4">
+            <button id="btnBelieve" class="btn-red">(A) Верю</button>
+            <button id="btnDisbelieve" class="btn-red">(B) Не верю</button>
+          </div>
+        </div>
+      </main>
+
+      <aside id="sidePanel" class="w-64 flex-shrink-0 border-l-2 border-red-900 bg-black p-3 flex flex-col gap-3 overflow-y-auto">
+        <div id="timerBox" class="dialog-box p-3 timer-danger-box">
+          <div class="pixel-sm text-gray-500 mb-1">ВРЕМЯ</div>
+          <div id="timer" class="text-3xl text-red-500 font-bold">4:00</div>
+        </div>
+        <p id="streakBox" class="hidden pixel-sm text-red-400 text-center">СЕРИЯ: <span id="streak">0</span></p>
+        <div id="clueSection">
+          <div class="flex justify-between pixel-sm text-gray-500 mb-1"><span>УЛИКИ</span><span id="clueCount">0/9</span></div>
+          <div class="progress-bar"><div id="clueBar" class="progress-fill"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between pixel-sm text-gray-500 mb-1"><span>УЖАС</span><span id="horrorPct">0%</span></div>
+          <div class="progress-bar horror-bar"><div id="horrorBar" class="progress-fill"></div></div>
+        </div>
+        <div class="flex-1 min-h-0">
+          <div class="pixel-sm text-gray-500 mb-1">БЛОКНОТ</div>
+          <div id="notebook"><p class="text-gray-600 text-sm italic">Пусто...</p></div>
+        </div>
+        <button id="btnConclude" class="btn-red w-full" disabled>Сделать вывод</button>
+      </aside>
+    </div>
+
+    <div id="bottomBar">
+      <button id="btnNewGame" class="btn-red">Новая игра</button>
+      <button id="btnExit" class="btn-gray">Выход</button>
+    </div>
+  </div>
+
+  <div id="tutorialOverlay">
+    <div class="tut-highlight" id="tutHighlight"></div>
+    <div class="tut-bubble arrow-top" id="tutBubble">
+      <div class="tut-arrow"></div>
+      <p id="tutText"></p>
+    </div>
+    <div id="tutNav">
+      <span class="pixel-sm text-gray-600" id="tutNum">1/4</span>
+      <button id="tutBtn" class="btn-red" style="padding:6px 10px;font-size:7px">Далее →</button>
+    </div>
+  </div>
+
+  <div id="quizModal" class="hidden">
+    <div class="dialog-box max-w-md w-full">
+      <p id="quizQuestion" class="text-lg mb-4">Кто убийца?</p>
+      <div id="quizOptions"></div>
+    </div>
+  </div>
+
+  <div id="endOverlay" class="hidden">
+    <div class="dialog-box max-w-lg w-full text-center">
+      <p id="endTitle" class="pixel text-red-500 mb-4"></p>
+      <p id="endMsg" class="text-lg mb-6"></p>
+      <div class="flex gap-3 justify-center flex-wrap">
+        <button id="endNewGame" class="btn-red">Новая игра</button>
+        <button id="endExit" class="btn-gray">Выход</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screamer"><img id="screamerImg" alt=""></div>
+  <div id="portraitPreview"><canvas width="128" height="128" id="previewCanvas"></canvas></div>
+
+  <script>
+    const API_KEY='sk-5726118c98744b75a0ba5f8ca717071b';
+    const API_URL='https://api.deepseek.com/v1/chat/completions';
+    const MAX_PER_NPC=4,TOTAL_CLUES=9,QUIZ_AFTER=9,TIMER_START=240;
+
+    const STORY=[
+      'Лекция профессора Мортона по криптографии... Внезапно свет гаснет. Раздаётся глухой удар. Когда лампы загораются снова, ПРОФЕССОР МОРТОН лежит на полу без дыхания. На его шее — странные следы.',
+      'Профессор Мортон (54 года) — гениальный криптограф. У него были враги: завистливые коллеги, обиженные студенты, таинственные незнакомцы.',
+      'Каждый из присутствующих имел мотив: Элиас — конкурент. Луна — отчисленная аспирантка. Феликс — должник. Айви — шантажистка. Орион — нарушитель правил.',
+      'Теперь твоя очередь. Допрашивай, анализируй, находи противоречия. Собери 9 улик. У тебя 4 минуты.'
+    ];
+
+    const NPCS=[
+      {id:'elias',name:'Профессор Элиас',role:'Профессор',short:'элиас'},
+      {id:'luna',name:'Студентка Луна',role:'Студентка',short:'луна'},
+      {id:'felix',name:'Студент Феликс',role:'Студент',short:'феликс'},
+      {id:'ivy',name:'Уборщица Айви',role:'Уборщица',short:'айви'},
+      {id:'orion',name:'Охранник Орион',role:'Охранник',short:'орион'}
+    ];
+
+    const WEAPONS=[{id:'knife',label:'Нож'},{id:'rope',label:'Верёвка'},{id:'poison',label:'Яд'},{id:'strangle',label:'Удавка'}];
+    const FORBIDDEN=/убийц|подозрительн|виновен|виноват|он убил|она убил|преступник/i;
+    const CLUE_TYPES=['alibi','physical','motive'];
+    const MOTIVE_KW=['мотив','завист','деньги','месть','шантаж','долг','конкурен','отчисл'];
+    const ALIBI_KW=['библиотек','коридор','кабинет','двер','столов','подвал','камер'];
+
+    const FALLBACK_TRUTH={
+      alibi:['В момент удара я был у задней двери — свет моргнул дважды.','Слышала шаги в коридоре, но не видела лиц.','Камера у входа на секунду зависла.','Дверь в подвал была приоткрыта.','Все смотрели на доску, когда погас свет.','Я стоял у окна — отражение в стекле мелькнуло.','Звук удара пришёл из первого ряда.','Кто-то бежал к запасному выходу.','В журнале посещений последняя запись стёрта.','Сработала только аварийная лампа.'],
+      physical:(w)=>({knife:['На полу короткая царапина — как от лезвия.','Запах металла в первом ряду.','Капля засохшей крови у подножия кафедры.','След на парте — острый предмет.'],rope:['На шее тонкий волокнистый след.','Кусок синтетического волокна у трибуны.','На стуле зацепилась нить.','След на шее сзади — симметричный.'],poison:['Странный запах горечи на губах.','На бокале маслянистая плёнка.','В воздухе стоял запах миндаля.','На столе пустой пузырёк от капель.'],strangle:['Следы на шее симметричные — будто сдавили.','Голосовые связки повреждены без крови.','На шее отпечаток ткани.','Пальцы слегка посинели.']})[w]||['На полу необычный след.','У кафедры валяется перчатка.'],
+      motive:['За неделю кто-то ругался с Мортоном в кабинете 12.','Пропала папка с оценками из архива.','В корзине нашли конверт с угрозой.','Кто-то менял оценки в электронном журнале.','В подвале нашли сожжённые бумаги.','Мортон кому-то отказал в рекомендации.']
+    };
+    const FALLBACK_LIE=['Я всё время был в библиотеке — это в журнале.','Шум был у доски, но я смотрел в окно.','Перчатки на полу не мои — другой размер.','Микрофон пискнул до удара — началось раньше.','В подвале пахло кислотой — старые тряпки.','Свет погас, когда я поправлял стул в первом ряду.','Я не слышал ничего — наушники были в ушах.','Камеры не работали уже неделю.','Я только что зашёл — дверь была открыта.','Мортон сам упал — я видел.','В тот момент я писал конспект у окна.','Никого не было в коридоре — клянусь.','Запах был от старых книг, не от крови.','Я спускался за водой — лифт долго ехал.','Сначала упал проектор, потом всё остальное.','Я сидел в последнем ряду и ничего не видел.','Дверь хлопнула сама — сквозняк.','Я разговаривал по телефону в коридоре.','Свидетелей нет — все отвернулись.','Это мог быть кто угодно — я не знаю.'];
+    const MOTIVE_BY_ROLE={
+      elias:['Между преподавателями-конкурентами шла борьба за грант.','Элиас недавно подал жалобу на методику Мортона.','На столе Элиаса лежал черновик гневного письма.'],
+      luna:['Аспирантка могла лишиться места из-за вердикта.','Луна вчера плакала у двери кабинета 12.','Её диссертацию Мортон вернул с красными пометками.'],
+      felix:['У студента висел крупный долг перед кафедрой.','Феликс просрочил сдачу курсовой дважды.','Его имя вычеркнули из списка на стипендию.'],
+      ivy:['Уборщица знала о тайном шантаже в подвале.','Айви слышала ссору в кабинете накануне.','Она нашла чужой ключ от архива.'],
+      orion:['Охранник скрывал нарушение пропускного режима.','Орион пропустил незнакомца без бейджа.','В его журнале стёрта запись за вечер.']
+    };
+
+    const TUTORIAL_STEPS=[
+      {target:'#scene',text:'Кликни на персонажа в аудитории — начнётся допрос (до 4 раз каждого).',arrow:'top'},
+      {target:'#dialogArea',text:'Читай показание. (A) Верю — если правда. (B) Не верю — если ложь. Верный выбор = +1 улика.',arrow:'bottom'},
+      {target:'#clueSection',text:'Собери 9 улик. Ошибка: −1 улика, −10 сек, +20% ужаса.',arrow:'left'},
+      {target:'#btnConclude',text:'После 9 допросов нажми «Сделать вывод» и назови убийцу. Удачи!',arrow:'left'}
+    ];
+
+    let S={},cache={},usedLines=new Set(),timerId,heartbeatId,screamerTimeouts=[];
+    let audioCtx,masterGain,ambientGain,muted=false,gameStarted=false,audioReady=false;
+    let storyStep=0,tutStep=0,currentNpc=null,currentTruth=false,waitingChoice=false,typeTimer=null;
+    let portraitData={};
+
+    const $=id=>document.getElementById(id);
+
+    // ─── CANVAS PIXEL ART 16×16 → 64×64 (red horror palette) ───
+    const P={b:'#0a0000',d:'#1a0808',r:'#5a1818',R:'#8b0000',X:'#cc2222',s:'#6a4030',S:'#8a5848',h:'#2a1510',g:'#555',G:'#999',y:'#aa6633',w:'#ccc',B:'#330000'};
+
+    function pxl(ctx,x,y,c,s=4){if(!c)return;ctx.fillStyle=c;ctx.fillRect(x*s,y*s,s,s)}
+
+    function drawBasePerson(ctx,hairColor,bodyColor,extra){
+      ctx.fillStyle=P.b;ctx.fillRect(0,0,64,64);
+      for(let x=4;x<12;x++){pxl(ctx,x,1,hairColor);pxl(ctx,x,2,hairColor)}
+      for(let y=3;y<8;y++)for(let x=4;x<12;x++)pxl(ctx,x,y,P.s);
+      pxl(ctx,5,4,P.b);pxl(ctx,10,4,P.b);pxl(ctx,6,6,P.R);pxl(ctx,7,6,P.R);
+      for(let y=8;y<13;y++)for(let x=3;x<13;x++)pxl(ctx,x,y,bodyColor);
+      for(let y=13;y<16;y++){pxl(ctx,4,y,P.h);pxl(ctx,5,y,P.h);pxl(ctx,9,y,P.h);pxl(ctx,10,y,P.h)}
+      if(extra)extra();
+    }
+
+    function drawElias(ctx){
+      drawBasePerson(ctx,P.G,P.d,()=>{
+        for(let x=3;x<7;x++){pxl(ctx,x,4,P.g);pxl(ctx,x,5,P.g)}
+        for(let x=9;x<13;x++){pxl(ctx,x,4,P.g);pxl(ctx,x,5,P.g)}
+        pxl(ctx,7,9,P.w);pxl(ctx,8,9,P.w);pxl(ctx,7,10,P.X);pxl(ctx,8,10,P.X);
+      });
+    }
+    function drawLuna(ctx){
+      drawBasePerson(ctx,P.R,P.r,()=>{
+        for(let x=3;x<13;x++)pxl(ctx,x,0,P.R);
+        for(let x=2;x<14;x++)pxl(ctx,x,1,P.r);
+        pxl(ctx,6,9,P.X);pxl(ctx,7,9,P.X);
+      });
+    }
+    function drawFelix(ctx){
+      drawBasePerson(ctx,P.r,P.d,()=>{
+        for(let x=2;x<14;x++){pxl(ctx,x,0,P.r);pxl(ctx,x,1,P.r)}
+        for(let x=5;x<11;x++)pxl(ctx,x,2,P.r);
+      });
+    }
+    function drawIvy(ctx){
+      drawBasePerson(ctx,P.g,P.r,()=>{
+        pxl(ctx,1,8,P.y);pxl(ctx,1,9,P.y);pxl(ctx,2,8,P.g);
+        for(let y=5;y<13;y++){pxl(ctx,13,y,P.y);pxl(ctx,14,y,P.y)}
+        pxl(ctx,14,6,P.w);pxl(ctx,14,7,P.w);
+        for(let y=10;y<14;y++){pxl(ctx,0,y,P.g);pxl(ctx,1,y,P.g)}
+      });
+    }
+    function drawOrion(ctx){
+      drawBasePerson(ctx,P.d,P.d,()=>{
+        for(let x=2;x<14;x++)pxl(ctx,x,0,P.d);
+        pxl(ctx,2,2,P.g);pxl(ctx,13,2,P.g);
+        for(let y=4;y<8;y++)pxl(ctx,14,y,P.w);
+        pxl(ctx,14,5,P.y);
+      });
+    }
+    function drawMorton(ctx){
+      ctx.fillStyle=P.b;ctx.fillRect(0,0,64,64);
+      for(let x=2;x<14;x++)for(let y=13;y<16;y++)pxl(ctx,x,y,P.X);
+      for(let x=3;x<13;x++)for(let y=12;y<14;y++)pxl(ctx,x,y,P.R);
+      for(let x=4;x<12;x++)for(let y=8;y<12;y++)pxl(ctx,x,y,P.S);
+      for(let x=5;x<11;x++)pxl(ctx,x,7,P.s);
+      pxl(ctx,5,8,P.b);pxl(ctx,10,8,P.b);
+      pxl(ctx,6,9,P.B);pxl(ctx,7,9,P.B);pxl(ctx,8,9,P.B);pxl(ctx,9,9,P.B);
+      pxl(ctx,7,10,P.R);pxl(ctx,8,10,P.R);
+      for(let x=1;x<4;x++)pxl(ctx,x,14,P.X);
+    }
+
+    function initPortraits(){
+      const draws={elias:drawElias,luna:drawLuna,felix:drawFelix,ivy:drawIvy,orion:drawOrion,morton:drawMorton};
+      for(const[id,fn] of Object.entries(draws)){
+        const cv=$(id==='morton'?'canvas-morton':'canvas-'+id);
+        if(!cv)continue;
+        const ctx=cv.getContext('2d');ctx.clearRect(0,0,64,64);fn(ctx);
+        portraitData[id]=cv.toDataURL();
+      }
+      // hover preview
+      document.querySelectorAll('.npc-scene').forEach(btn=>{
+        const id=btn.dataset.id;
+        btn.addEventListener('mouseenter',()=>{
+          const prev=$('portraitPreview'),pc=$('previewCanvas'),pctx=pc.getContext('2d');
+          pctx.imageSmoothingEnabled=false;pctx.clearRect(0,0,128,128);
+          const img=new Image();img.onload=()=>{pctx.drawImage(img,0,0,128,128)};img.src=portraitData[id];
+          const r=btn.getBoundingClientRect();
+          prev.style.display='block';prev.style.left=(r.left+r.width/2-70)+'px';prev.style.top=(r.top-140)+'px';
+        });
+        btn.addEventListener('mouseleave',()=>{$('portraitPreview').style.display='none'});
+      });
+      $('mortonCorpse').addEventListener('mouseenter',()=>{
+        const prev=$('portraitPreview'),pc=$('previewCanvas'),pctx=pc.getContext('2d');
+        pctx.imageSmoothingEnabled=false;pctx.clearRect(0,0,128,128);
+        const img=new Image();img.onload=()=>{pctx.drawImage(img,0,0,128,128)};img.src=portraitData.morton;
+        const r=$('mortonCorpse').getBoundingClientRect();
+        prev.style.display='block';prev.style.left=(r.left-20)+'px';prev.style.top=(r.top-140)+'px';
+      });
+      $('mortonCorpse').addEventListener('mouseleave',()=>{$('portraitPreview').style.display='none'});
+    }
+
+    // ─── AUDIO ───
+    function initAudio(){
+      if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      if(!masterGain){masterGain=audioCtx.createGain();masterGain.gain.value=0.85;masterGain.connect(audioCtx.destination)}
+      if(!ambientGain){ambientGain=audioCtx.createGain();ambientGain.gain.value=0;ambientGain.connect(masterGain)}
+    }
+
+    async function ensureAudio(){
+      initAudio();
+      if(audioCtx.state==='suspended') await audioCtx.resume();
+      audioReady=audioCtx.state==='running';
+      if(audioReady){$('audioHint').style.display='none';startAmbient()}
+      return audioReady;
+    }
+
+    async function playTone(f,d,type='sine',vol=0.4){
+      if(muted||!await ensureAudio()) return;
+      const t=audioCtx.currentTime,o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type=type;o.frequency.setValueAtTime(f,t);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+d);
+      o.connect(g);g.connect(masterGain);o.start(t);o.stop(t+d);
+    }
+
+    function playSuccessSound(){
+      const notes=[523.25,659.25,783.99,1046.5];
+      notes.forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'triangle',0.32),i*80));
+    }
+
+    function playErrorSound(){
+      playTone(120,0.25,'sawtooth',0.45);
+      setTimeout(()=>playTone(80,0.35,'square',0.38),90);
+      setTimeout(()=>playTone(60,0.2,'sawtooth',0.3),200);
+    }
+    function playScreamSound(){playTone(1200,0.08,'sawtooth',0.4);setTimeout(()=>playTone(300,0.25,'sawtooth',0.35),50)}
+    function playLaugh(){[220,196,247,185].forEach((f,i)=>setTimeout(()=>playTone(f,0.2,'square',0.14),i*160))}
+
+    let horrorFxId=null,ambientOn=false;
+
+    function playDoorCreak(){
+      if(muted||!audioCtx||!ambientGain)return;
+      const t=audioCtx.currentTime;
+      const len=Math.floor(audioCtx.sampleRate*2.2);
+      const buf=audioCtx.createBuffer(1,len,audioCtx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+      const src=audioCtx.createBufferSource();src.buffer=buf;
+      const bp=audioCtx.createBiquadFilter();bp.type='bandpass';bp.Q.value=8;
+      bp.frequency.setValueAtTime(120,t);bp.frequency.exponentialRampToValueAtTime(780,t+0.9);
+      bp.frequency.exponentialRampToValueAtTime(160,t+1.8);
+      const g=audioCtx.createGain();
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(0.14,t+0.08);
+      g.gain.exponentialRampToValueAtTime(0.001,t+2);
+      src.connect(bp);bp.connect(g);g.connect(ambientGain);
+      src.start(t);src.stop(t+2.2);
+      const sq=audioCtx.createOscillator();const sqG=audioCtx.createGain();
+      sq.type='sawtooth';sq.frequency.setValueAtTime(420,t);sq.frequency.exponentialRampToValueAtTime(180,t+1.4);
+      sqG.gain.setValueAtTime(0,t);sqG.gain.linearRampToValueAtTime(0.025,t+0.1);sqG.gain.exponentialRampToValueAtTime(0.001,t+1.6);
+      sq.connect(sqG);sqG.connect(ambientGain);sq.start(t);sq.stop(t+1.8);
+    }
+
+    function startAmbient(){
+      if(muted||ambientOn)return;
+      ensureAudio().then(ok=>{
+        if(!ok||muted||ambientOn)return;
+        stopAmbient(true);
+        ambientOn=true;
+        const t0=audioCtx.currentTime,nodes=[];
+        ambientGain.gain.setValueAtTime(0.38,t0);
+        [[82.41,0.09,'sine'],[98,0.07,'triangle'],[123.47,0.06,'sine'],[164.81,0.04,'triangle']].forEach(([f,v,type])=>{
+          const o=audioCtx.createOscillator();const g=audioCtx.createGain();
+          o.type=type;o.frequency.value=f;g.gain.value=v;
+          o.connect(g);g.connect(ambientGain);o.start(t0);nodes.push(o,g);
+        });
+        const trem=audioCtx.createOscillator();const tremG=audioCtx.createGain();
+        trem.type='sine';trem.frequency.value=0.35;tremG.gain.value=0.025;
+        trem.connect(tremG);tremG.connect(ambientGain.gain);trem.start(t0);nodes.push(trem,tremG);
+        const melody=[130.81,123.47,110,103.83,110,123.47];
+        let mi=0;
+        window._melodyId=setInterval(()=>{
+          if(muted||!ambientOn)return;
+          playTone(melody[mi%melody.length],0.55,'triangle',0.045);mi++;
+        },2800);
+        window._ambientNodes=nodes;
+        playDoorCreak();
+        clearInterval(horrorFxId);
+        horrorFxId=setInterval(()=>{
+          if(muted||!ambientOn)return;
+          const r=Math.random();
+          if(r<0.45) playDoorCreak();
+          else if(r<0.65) playTone(220+Math.random()*60,0.35,'sine',0.03);
+          else playTone(880,0.2,'sine',0.015);
+        },7000+Math.random()*5000);
+      });
+    }
+
+    function stopAmbient(keepFlag){
+      clearInterval(horrorFxId);horrorFxId=null;
+      clearInterval(window._melodyId);window._melodyId=null;
+      (window._ambientNodes||[]).forEach(n=>{try{n.stop()}catch(e){}});
+      window._ambientNodes=[];
+      if(ambientGain) ambientGain.gain.setValueAtTime(0,audioCtx?.currentTime||0);
+      if(!keepFlag) ambientOn=false;
+    }
+
+    function updateHeartbeat(){
+      clearInterval(heartbeatId);
+      if(!S||S.over||muted||!gameStarted)return;
+      let iv=0;
+      if(S.time<=10) iv=333; else if(S.time<=30) iv=500; else if(S.time<=60) iv=900;
+      if(!iv)return;
+      heartbeatId=setInterval(()=>{playTone(48,0.14,'sine',0.35)},iv);
+    }
+
+    $('muteBtn').onclick=async()=>{await ensureAudio();muted=!muted;$('muteBtn').textContent=muted?'🔇':'🔊';if(muted){stopAmbient();clearInterval(heartbeatId)}else{startAmbient();updateHeartbeat()}};
+    $('audioHint').onclick=()=>ensureAudio().then(ok=>{if(ok){playTone(440,0.06,'sine',0.2);startAmbient();if(gameStarted)updateHeartbeat()}});
+    ['click','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,()=>ensureAudio(),{passive:true}));
+
+    // ─── GAME LOGIC ───
+    function rand(a){return a[Math.floor(Math.random()*a.length)]}
+    function weaponLabel(w){return{knife:'нож',rope:'верёвка',poison:'яд',strangle:'удавка'}[w]||w}
+    function pickClueType(i){return CLUE_TYPES[i%3]}
+    function getFallbackPool(npcId,truthful,idx){
+      const t=pickClueType(idx);
+      if(truthful){
+        if(t==='alibi') return FALLBACK_TRUTH.alibi.slice();
+        if(t==='physical') return FALLBACK_TRUTH.physical(S.weapon).slice();
+        return (MOTIVE_BY_ROLE[npcId]||FALLBACK_TRUTH.motive).slice();
+      }
+      return FALLBACK_LIE.slice();
+    }
+    function pickUniqueLine(npcId,truthful,idx){
+      const pool=getFallbackPool(npcId,truthful,idx);
+      const free=pool.filter(l=>!usedLines.has(l));
+      const src=free.length?free:pool;
+      for(let i=0;i<src.length;i++){
+        const line=src[(idx+i+npcId.length)%src.length];
+        if(!usedLines.has(line)){usedLines.add(line);return line}
+      }
+      const extra=(truthful?'Улика #':'Показание #')+(npcId+'-'+idx+'-'+usedLines.size);
+      usedLines.add(extra);return extra;
+    }
+    function fallbackLine(npcId,truthful,idx){return pickUniqueLine(npcId,truthful,idx)}
+    function rememberLine(line){
+      if(line) usedLines.add(line);
+      return line;
+    }
+    function sanitizeTestimony(text){
+      if(!text||FORBIDDEN.test(text))return null;
+      const low=text.toLowerCase();
+      for(const n of NPCS) if(low.includes(n.short)) return null;
+      return text.replace(/^["']|["']$/g,'').trim();
+    }
+    function rollTruth(id){return Math.random()<(id===S.killer?0.4:0.7)}
+    function buildPrompt(npcId,truthful,idx){
+      const npc=NPCS.find(n=>n.id===npcId),type=pickClueType(idx),tw=truthful?'правдивым':'ложным';
+      return `Ты — ${npc.name}. Профессор Мортон убит. Показание #${idx+1}, ${tw}. Тип: ${type}.
+ЗАПРЕЩЕНО: «убийца», «подозрительный», «виновен», имена Элиас/Луна/Феликс/Айви/Орион.
+Дай одну короткую фразу-улику на русском без прямых обвинений.`;
+    }
+    async function fetchLine(npcId,idx,truthful){
+      const key=npcId+'_'+idx;
+      if(cache[key])return cache[key];
+      const ctrl=new AbortController(),to=setTimeout(()=>ctrl.abort(),2000);
+      try{
+        const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+API_KEY},
+          body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:buildPrompt(npcId,truthful,idx)}],max_tokens:80,temperature:0.92}),signal:ctrl.signal});
+        clearTimeout(to);if(!res.ok)throw 0;
+        const data=await res.json(),t=sanitizeTestimony(data.choices?.[0]?.message?.content?.trim());
+        if(t&&!usedLines.has(t)){cache[key]=rememberLine(t);return cache[key]}
+      }catch{clearTimeout(to)}
+      cache[key]=fallbackLine(npcId,truthful,idx);
+      return cache[key];
+    }
+
+    function typewrite(el,text,cb){
+      clearInterval(typeTimer);el.textContent='';el.classList.add('type-cursor');
+      let i=0;typeTimer=setInterval(()=>{el.textContent+=text[i++];if(i>=text.length){clearInterval(typeTimer);el.classList.remove('type-cursor');if(cb)cb()}},26);
+    }
+
+    function showStory(){
+      $('storyOverlay').classList.remove('hidden');
+      if(storyStep>=STORY.length){
+        $('storyOverlay').classList.add('hidden');
+        $('gameRoot').classList.remove('hidden');
+        initGame(false);
+        startTutorialOnGame();
+        return;
+      }
+      $('storyBtn').textContent=storyStep===STORY.length-1?'Далее →':'Начать →';
+      typewrite($('storyText'),STORY[storyStep]);
+    }
+    $('storyBtn').onclick=async()=>{await ensureAudio();startAmbient();playTone(330,0.08,'sine',0.15);storyStep++;showStory()};
+
+    function endTutorial(){
+      $('tutorialOverlay').classList.remove('active');
+      $('tutHighlight').style.display='none';
+      $('tutBubble').style.display='none';
+      if($('tutNav')) $('tutNav').style.display='none';
+    }
+
+    function startTutorialOnGame(){
+      tutStep=0;
+      $('tutorialOverlay').classList.add('active');
+      $('tutHighlight').style.display='block';
+      $('tutBubble').style.display='block';
+      $('tutNav').style.display='flex';
+      showTutStep();
+    }
+
+    function showTutStep(){
+      const step=TUTORIAL_STEPS[tutStep];
+      const el=document.querySelector(step.target);
+      if(!el)return;
+      const r=el.getBoundingClientRect(),pad=6,margin=14;
+      const hl=$('tutHighlight'),bub=$('tutBubble'),nav=$('tutNav');
+      hl.style.left=(r.left-pad)+'px';hl.style.top=(r.top-pad)+'px';
+      hl.style.width=(r.width+pad*2)+'px';hl.style.height=(r.height+pad*2)+'px';
+      bub.className='tut-bubble arrow-'+step.arrow;
+      $('tutText').textContent=step.text;
+      $('tutNum').textContent=(tutStep+1)+'/'+TUTORIAL_STEPS.length;
+      $('tutBtn').textContent=tutStep===TUTORIAL_STEPS.length-1?'Начать игру!':'Далее →';
+      if(nav) nav.style.display='flex';
+      requestAnimationFrame(()=>{
+        const navH=nav?nav.offsetHeight:56,bubW=bub.offsetWidth||280,bubH=bub.offsetHeight||80;
+        const navTop=window.innerHeight-navH-margin;
+        let bx,by;
+        if(step.arrow==='top'){bx=r.left+r.width/2-bubW/2;by=Math.min(r.bottom+margin,navTop-bubH-margin)}
+        else if(step.arrow==='bottom'){bx=r.left+r.width/2-bubW/2;by=Math.max(margin,r.top-bubH-margin)}
+        else if(step.arrow==='left'){bx=Math.min(r.right+margin,window.innerWidth-bubW-margin);by=r.top}
+        else if(step.arrow==='right'){bx=Math.max(margin,r.left-bubW-margin);by=r.top}
+        else{bx=r.left;by=r.top}
+        bx=Math.max(margin,Math.min(bx,window.innerWidth-bubW-margin));
+        by=Math.max(margin,Math.min(by,navTop-bubH-margin));
+        bub.style.left=bx+'px';bub.style.top=by+'px';
+      });
+    }
+
+    $('tutBtn').onclick=async()=>{
+      await ensureAudio();startAmbient();
+      if(tutStep<TUTORIAL_STEPS.length-1){tutStep++;showTutStep();return}
+      endTutorial();
+      gameStarted=true;
+      startTimer();updateHeartbeat();scheduleScreamers();
+    };
+
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Escape')return;
+      if(!$('tutorialOverlay').classList.contains('active'))return;
+      endTutorial();
+      if(!gameStarted){gameStarted=true;startTimer();startAmbient();updateHeartbeat();scheduleScreamers()}
+    });
+
+    function totalInterrogations(){return Object.values(S.interrogations).reduce((a,b)=>a+b,0)}
+
+    function updateNpcLabels(){
+      NPCS.forEach(n=>{
+        const c=document.querySelector('[data-count="'+n.id+'"]');
+        if(c) c.textContent=S.interrogations[n.id]+'/'+MAX_PER_NPC;
+        const b=$('npc-'+n.id);
+        if(b) b.disabled=S.over||S.interrogations[n.id]>=MAX_PER_NPC;
+      });
+    }
+
+    function updateUI(){
+      $('clueCount').textContent=S.clues+'/'+TOTAL_CLUES;
+      $('clueBar').style.width=(S.clues/TOTAL_CLUES*100)+'%';
+      $('horrorPct').textContent=S.horror+'%';
+      $('horrorBar').style.width=S.horror+'%';
+      $('timer').textContent=fmt(S.time);
+      document.body.classList.toggle('shake-light',S.horror>70&&!S.over);
+      $('timer').classList.toggle('timer-danger',S.time<30&&!S.over);
+      $('timerBox').classList.toggle('timer-danger-box',S.time<30&&!S.over);
+      $('btnConclude').disabled=S.over||totalInterrogations()<QUIZ_AFTER;
+      updateNpcLabels();updateHeartbeat();
+    }
+    function fmt(s){return Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0')}
+
+    function addNote(npcId,text){
+      const nb=$('notebook');if(nb.querySelector('.italic'))nb.innerHTML='';
+      S.diary.push({npcId,text});
+      const div=document.createElement('div');div.className='note-entry';
+      div.innerHTML='<span class="who">'+NPCS.find(n=>n.id===npcId).name+':</span> '+text;
+      nb.appendChild(div);nb.scrollTop=nb.scrollHeight;
+    }
+
+    async function startInterrogate(npcId){
+      if(S.over||waitingChoice||!gameStarted)return;
+      if(S.interrogations[npcId]>=MAX_PER_NPC)return;
+      currentNpc=npcId;
+      const idx=S.interrogations[npcId];
+      if(!S.truthTable[npcId])S.truthTable[npcId]=[];
+      if(S.truthTable[npcId][idx]===undefined)S.truthTable[npcId][idx]=rollTruth(npcId);
+      currentTruth=S.truthTable[npcId][idx];
+      const npc=NPCS.find(n=>n.id===npcId);
+      $('dialogName').textContent=npc.name+' — показание '+(idx+1)+'/4';
+      $('dialogActions').classList.add('hidden');waitingChoice=false;
+      typewrite($('dialogText'),'Слушаю...');
+      const line=await fetchLine(npcId,idx,currentTruth);
+      if(currentNpc!==npcId)return;
+      typewrite($('dialogText'),line,()=>{$('dialogActions').classList.remove('hidden');waitingChoice=true});
+      addNote(npcId,line);
+    }
+
+    function gainClue(){if(S.clues>=TOTAL_CLUES)return;S.clues++}
+    function punishError(){
+      S.mistakes++;if(S.clues>0)S.clues--;
+      S.time=Math.max(0,S.time-10);S.horror=Math.min(100,S.horror+20);
+      playErrorSound();document.body.classList.add('shake','red-flash');
+      setTimeout(()=>document.body.classList.remove('shake','red-flash'),500);
+      miniScreamer(500);
+      if(S.horror>=100){endGame(false);return true}return false;
+    }
+
+    function resolveChoice(believe){
+      if(!waitingChoice||!currentNpc)return;
+      waitingChoice=false;$('dialogActions').classList.add('hidden');
+      if(believe&&currentTruth){gainClue();playSuccessSound();S.streak++}
+      else if(!believe&&!currentTruth){gainClue();playSuccessSound();S.streak++}
+      else{S.streak=0;if(punishError())return}
+      const sb=$('streakBox');
+      if(S.streak>0){sb.classList.remove('hidden');$('streak').textContent=S.streak}else sb.classList.add('hidden');
+      S.interrogations[currentNpc]++;currentNpc=null;
+      $('dialogText').textContent='Выберите свидетеля.';$('dialogName').textContent='—';
+      updateUI();
+    }
+
+    $('btnBelieve').onclick=()=>resolveChoice(true);
+    $('btnDisbelieve').onclick=()=>resolveChoice(false);
+    NPCS.forEach(n=>$('npc-'+n.id).onclick=()=>startInterrogate(n.id));
+
+    function startQuiz(){
+      if(S.over)return;
+      $('quizModal').classList.remove('hidden');
+      const opts=$('quizOptions');opts.innerHTML='';
+      NPCS.forEach(n=>{
+        const b=document.createElement('button');b.className='quiz-option';b.textContent=n.name;
+        b.onclick=()=>{
+          $('quizModal').classList.add('hidden');
+          if(n.id===S.killer) endGame(true);
+          else endGame(false,true);
+        };
+        opts.appendChild(b);
+      });
+    }
+    $('btnConclude').onclick=startQuiz;
+
+    function showScreamer(){
+      $('screamer').classList.add('show');document.body.classList.add('shake');playScreamSound();
+      setTimeout(()=>{$('screamer').classList.remove('show');document.body.classList.remove('shake')},1500);
+    }
+    function miniScreamer(ms){$('screamer').classList.add('show');setTimeout(()=>$('screamer').classList.remove('show'),ms)}
+
+    function scheduleScreamers(){
+      screamerTimeouts.forEach(t=>clearTimeout(t));screamerTimeouts=[];
+      [90000,200000].forEach(ms=>screamerTimeouts.push(setTimeout(()=>{if(!S.over)showScreamer()},ms)));
+    }
+
+    function startTimer(){
+      clearInterval(timerId);
+      timerId=setInterval(()=>{if(S.over||!gameStarted)return;S.time--;updateUI();if(S.time<=0)endGame(false)},1000);
+    }
+
+    function endGame(won,wrongKiller){
+      S.over=true;gameStarted=false;
+      clearInterval(timerId);clearInterval(heartbeatId);
+      screamerTimeouts.forEach(t=>clearTimeout(t));stopAmbient();
+      $('endOverlay').classList.remove('hidden');
+      const killer=NPCS.find(n=>n.id===S.killer);
+      if(won){
+        $('endTitle').textContent='ПОБЕДА';
+        let msg='Вы раскрыли дело! Убийца задержан.';
+        if(S.mistakes===0)msg+=' Идеальное расследование. Профессор Мортон отомщён.';
+        $('endMsg').textContent=msg;playLaugh();
+        setTimeout(()=>{const e=Date.now()+3000;(function f(){confetti({particleCount:4,angle:60,spread:55,origin:{x:0},colors:['#c41e1e','#500']});confetti({particleCount:4,angle:120,spread:55,origin:{x:1},colors:['#c41e1e','#500']});if(Date.now()<e)requestAnimationFrame(f)})()},400);
+      }else{
+        $('endTitle').textContent='GAME OVER';
+        let msg=wrongKiller?'Неверный вывод... Убийца остался на свободе.':(S.horror>=100?'Ужас поглотил разум...':'Время вышло...');
+        msg+=' Настоящим убийцей был '+killer.name+'. Он всё ещё среди нас...';
+        $('endMsg').textContent=msg;
+      }
+    }
+
+    function stopAll(){
+      S.over=true;gameStarted=false;
+      clearInterval(timerId);clearInterval(heartbeatId);
+      screamerTimeouts.forEach(t=>clearTimeout(t));stopAmbient();
+      endTutorial();
+      $('quizModal').classList.add('hidden');$('endOverlay').classList.add('hidden');
+    }
+
+    function exitToMenu(){
+      stopAll();$('gameRoot').classList.add('hidden');
+      storyStep=0;showStory();
+    }
+
+    function initGame(startNow){
+      gameStarted=!!startNow;
+      S={killer:rand(NPCS).id,weapon:rand(WEAPONS).id,clues:0,horror:0,time:TIMER_START,over:false,streak:0,mistakes:0,interrogations:{},truthTable:{},diary:[]};
+      NPCS.forEach(n=>S.interrogations[n.id]=0);
+      cache={};usedLines=new Set();currentNpc=null;waitingChoice=false;
+      $('notebook').innerHTML='<p class="text-gray-600 text-sm italic">Пусто...</p>';
+      $('dialogText').textContent='Выберите свидетеля.';$('dialogName').textContent='—';
+      $('dialogActions').classList.add('hidden');$('streakBox').classList.add('hidden');
+      document.body.classList.remove('shake-light','shake','red-flash');
+      updateUI();
+      if(startNow){startTimer();scheduleScreamers();ensureAudio().then(()=>{startAmbient();updateHeartbeat()})}
+    }
+
+    $('btnNewGame').onclick=()=>{stopAll();initGame(false);startTutorialOnGame()};
+    $('endNewGame').onclick=()=>{$('endOverlay').classList.add('hidden');initGame(false);startTutorialOnGame()};
+    $('btnExit').onclick=exitToMenu;
+    $('endExit').onclick=exitToMenu;
+
+    document.addEventListener('keydown',e=>{
+      if(!waitingChoice)return;
+      if(e.key==='a'||e.key==='A'||e.key==='ф'||e.key==='Ф')resolveChoice(true);
+      if(e.key==='b'||e.key==='B'||e.key==='и'||e.key==='И')resolveChoice(false);
+    });
+
+    $('screamerImg').src='assets/horror-screamer.png';
+    $('screamerImg').onerror=()=>{
+      const c=document.createElement('canvas');c.width=400;c.height=400;
+      const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,400,400);
+      x.fillStyle='#f00';x.beginPath();x.arc(150,160,40,0,Math.PI*2);x.arc(250,160,40,0,Math.PI*2);x.fill();
+      $('screamerImg').src=c.toDataURL();
+    };
+
+    initPortraits();
+    showStory();
+  </script>
+</body>
+</html>
